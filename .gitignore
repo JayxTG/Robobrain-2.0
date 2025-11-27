@@ -1,0 +1,8 @@
+.env
+results/
+RoboBrain2.0_lib/
+__pycache__/
+.kaggle/
+.vscode/
+.venv/
+weights
