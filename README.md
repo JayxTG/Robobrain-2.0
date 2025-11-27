@@ -84,3 +84,137 @@ Each script performs a specific task using demo images from the RoboBrain reposi
 ## Results
 
 The output images with visualizations will be saved in the `results/` directory.
+
+---
+
+## 🧠 Multi-Turn Conversation Memory
+
+RoboBrain 2.0 now supports **multi-turn conversations** where the model maintains context across multiple queries about the same image or scene.
+
+### Features
+
+- **Conversation History**: The model remembers previous questions and answers
+- **Context-Aware Responses**: Follow-up questions can reference earlier discussion
+- **Save/Load Conversations**: Persist conversations to JSON files
+- **Multiple Task Types**: Switch between general QA, grounding, affordance, trajectory, and pointing within the same conversation
+
+### Interactive Chat
+
+Start an interactive conversation session:
+
+```bash
+python scripts/interactive_chat.py
+
+# Or with a specific image:
+python scripts/interactive_chat.py --image path/to/your/image.jpg
+```
+
+**Available commands in chat:**
+
+| Command | Description |
+|---------|-------------|
+| `/image <path>` | Set a new image to analyze |
+| `/task <type>` | Switch task type (general/grounding/affordance/trajectory/pointing) |
+| `/history` | Show conversation history |
+| `/clear` | Clear conversation memory |
+| `/save <file>` | Save conversation to JSON file |
+| `/load <file>` | Load a previous conversation |
+| `/thinking on/off` | Toggle thinking mode |
+| `/help` | Show all commands |
+| `/quit` | Exit |
+
+### Example Conversation
+
+```
+You: What objects do you see in this image?
+🤖 RoboBrain: I can see a cup, a banana, and a remote control on the table.
+
+You: Which one should I grab to drink water?
+🤖 RoboBrain: You should grab the cup. It appears to be a drinking vessel.
+
+You: /task grounding
+🎯 Task set to: grounding
+
+You: the cup
+🤖 RoboBrain: [142, 89, 256, 198]
+```
+
+### Programmatic Usage
+
+Use multi-turn memory in your own scripts:
+
+```python
+from scripts.utils import get_model
+from scripts.conversation_memory import MultiTurnInference
+
+# Load model
+model, repo_dir = get_model()
+
+# Initialize multi-turn chat
+chat = MultiTurnInference(model, repo_dir)
+
+# Set image
+chat.set_image("path/to/image.jpg")
+
+# Have a conversation
+response1 = chat.ask("What objects are on the table?")
+print(response1["answer"])
+
+# Follow-up question (uses context from previous exchange)
+response2 = chat.ask("Which one is closest to the edge?")
+print(response2["answer"])
+
+# Switch to grounding task
+bbox = chat.ground("the red cup")
+print(bbox["answer"])  # Returns bounding box coordinates
+
+# Save conversation for later
+chat.save_conversation("conversations/my_chat.json")
+
+# Clear and start fresh
+chat.reset()
+```
+
+### API Reference
+
+**`MultiTurnInference` class:**
+
+| Method | Description |
+|--------|-------------|
+| `set_image(path)` | Set the current image for conversation |
+| `ask(prompt, task="general")` | Ask a question with context |
+| `ground(description)` | Shortcut for grounding task |
+| `get_affordance(action)` | Shortcut for affordance task |
+| `get_trajectory(action)` | Shortcut for trajectory task |
+| `point_at(description)` | Shortcut for pointing task |
+| `reset()` | Clear conversation memory |
+| `save_conversation(path)` | Save to JSON file |
+| `load_conversation(path)` | Load from JSON file |
+| `show_history()` | Print conversation history |
+
+### Testing
+
+Run the multi-turn memory test suite:
+
+```bash
+python scripts/test_multi_turn.py
+```
+
+---
+
+## Local Weights
+
+If you have pre-downloaded model weights, place them in the `weights/` folder with the following structure:
+
+```
+weights/
+├── config.json
+├── model-00001-of-00002.safetensors
+├── model-00002-of-00002.safetensors
+├── model.safetensors.index.json
+├── tokenizer.json
+├── tokenizer_config.json
+└── ... (other config files)
+```
+
+The scripts will automatically detect and use local weights instead of downloading from HuggingFace.
