@@ -8,3 +8,7 @@ bitsandbytes
 matplotlib
 huggingface_hub
 python-dotenv
+
+# Notebook helpers
+decorator
+pygments
