@@ -47,10 +47,11 @@ except ImportError:
 # Results directory
 RESULTS_DIR = pathlib.Path(__file__).parent.parent / "results" / "interactive"
 
-# Groq API Key - must be provided via environment variable only. Do not hardcode keys in source.
+# Groq API Key - must be set via environment variable
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 if not GROQ_API_KEY:
-    print("\nERROR: GROQ_API_KEY environment variable is not set. Set it via export GROQ_API_KEY=<your_key> and re-run")
+    print("\nERROR: GROQ_API_KEY environment variable not set.")
+    print("Please set it via: export GROQ_API_KEY='your_key_here'")
     sys.exit(1)
 
 
