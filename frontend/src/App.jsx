@@ -7,7 +7,7 @@ import { createSession, checkHealth, getTasks } from './api';
 function App() {
   const [sessionId, setSessionId] = useState(null);
   const [currentImage, setCurrentImage] = useState(null);
-  const [currentTask, setCurrentTask] = useState('general');
+  const [currentTask, setCurrentTask] = useState('auto');
   const [enableThinking] = useState(false); // 3B model doesn't support thinking mode
   const [availableTasks, setAvailableTasks] = useState([]);
   const [isConnected, setIsConnected] = useState(false);

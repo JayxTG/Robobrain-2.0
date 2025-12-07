@@ -11,12 +11,62 @@ from werkzeug.utils import secure_filename
 import threading
 import torch
 import gc
+from dotenv import load_dotenv
+from groq import Groq
+
+load_dotenv()
 
 # Add scripts to path to import utils and conversation_memory
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 
 from utils import get_model
 from conversation_memory import MultiTurnInference
+
+def classify_task_with_groq(prompt):
+    """Classify the user prompt into a task using Groq API."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        print("Warning: GROQ_API_KEY not found. Defaulting to 'general'.")
+        return "general"
+    
+    try:
+        client = Groq(api_key=api_key)
+        
+        system_prompt = """
+        You are an intelligent agent that classifies user prompts into specific robotic tasks.
+        Available tasks:
+        - general: General Q&A, conversation, describing images.
+        - grounding: Finding specific objects in an image (e.g., 'find the apple', 'where is the cup', 'detect the bottle').
+        - affordance: Determining how to interact with objects (e.g., 'how do I grasp this?', 'where can I sit?', 'grasping points').
+        - trajectory: Planning a path or movement (e.g., 'draw a path to the door', 'how to move to the table', 'navigation').
+        - pointing: Pointing to a specific location (e.g., 'point to the handle', 'center of the object').
+        
+        Return ONLY the task ID (general, grounding, affordance, trajectory, pointing) as a plain string. Do not output JSON or markdown.
+        """
+        
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model="llama-3.3-70b-versatile",
+            temperature=0.1,
+            max_tokens=10,
+        )
+        task = chat_completion.choices[0].message.content.strip().lower()
+        valid_tasks = ['general', 'grounding', 'affordance', 'trajectory', 'pointing']
+        if task not in valid_tasks:
+            return 'general'
+        return task
+    except Exception as e:
+        print(f"Groq classification error: {e}")
+        return 'general'
 
 def cleanup_old_processes():
     """Kill any existing backend.py processes to free GPU memory."""
@@ -99,8 +149,8 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['RESULT_FOLDER'] = RESULT_FOLDER
 
 # Cleanup before initializing
-cleanup_old_processes()
-cleanup_gpu()
+# cleanup_old_processes()
+# cleanup_gpu()
 
 # Global model instance
 print("\nInitializing model... This may take a while.")
@@ -209,6 +259,12 @@ def chat():
     task = data.get('task', 'general')
     enable_thinking = data.get('enable_thinking', True)
     
+    if task == 'auto':
+        print(f"Auto-detecting task for prompt: {message}")
+        detected_task = classify_task_with_groq(message)
+        print(f"Detected task: {detected_task}")
+        task = detected_task
+
     if not session_id:
         return jsonify({"error": "Missing session ID"}), 400
         
@@ -294,6 +350,11 @@ def get_history(session_id):
 def get_tasks():
     """Get available tasks."""
     tasks = [
+        {
+            "id": "auto",
+            "name": "Auto Mode",
+            "description": "Automatically detect task type using AI"
+        },
         {
             "id": "general",
             "name": "General Chat",

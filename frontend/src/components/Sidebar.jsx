@@ -9,10 +9,12 @@ import {
   MousePointer,
   MessageSquare,
   Upload,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 
 const taskIcons = {
+  auto: Sparkles,
   general: MessageSquare,
   grounding: Target,
   affordance: Hand,
