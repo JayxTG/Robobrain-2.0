@@ -116,13 +116,20 @@ function Message({ message }) {
           <div className="mt-3">
             <div className="flex items-center gap-2 mb-2">
               <ImageIcon className="w-4 h-4 text-green-600" />
-              <p className="text-xs font-medium text-green-700">Visual Output:</p>
+              <p className="text-xs font-medium text-green-700 dark:text-green-400">
+                {message.outputImage.startsWith('/result/') || message.outputImage.includes('/result/') ? 'Annotated Output:' : 'Input Image (Processing):'}
+              </p>
+              {(!message.outputImage.startsWith('/result/') && !message.outputImage.includes('/result/')) && (
+                <span className="text-xs text-yellow-600 dark:text-yellow-400 italic">
+                  (Visualization pending - showing input image)
+                </span>
+              )}
             </div>
             <div className="relative group">
               <img
-                src={message.outputImage.startsWith('http') ? message.outputImage : `${import.meta.env.VITE_API_URL || ''}${message.outputImage}`}
+                src={message.outputImage.startsWith('http') ? message.outputImage : (message.outputImage.startsWith('data:') ? message.outputImage : `${import.meta.env.VITE_API_URL || ''}${message.outputImage}`)}
                 alt="Model output visualization"
-                className="max-w-md rounded-lg border-2 border-green-200 shadow-md cursor-pointer hover:border-green-400 transition-colors"
+                className="max-w-md rounded-lg border-2 border-green-200 shadow-md cursor-pointer hover:border-green-400 transition-colors dark:border-green-700 dark:hover:border-green-500"
                 onClick={() => setShowFullImage(true)}
                 onError={(e) => { e.target.onerror = null; e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" fill="%23999"%3EImage unavailable%3C/text%3E%3C/svg%3E'; }}
               />
@@ -142,7 +149,7 @@ function Message({ message }) {
               >
                 <div className="relative max-w-4xl max-h-full">
                   <img
-                    src={message.outputImage.startsWith('http') ? message.outputImage : `${import.meta.env.VITE_API_URL || ''}${message.outputImage}`}
+                    src={message.outputImage.startsWith('http') ? message.outputImage : (message.outputImage.startsWith('data:') ? message.outputImage : `${import.meta.env.VITE_API_URL || ''}${message.outputImage}`)}
                     alt="Model output visualization (full size)"
                     className="max-w-full max-h-[90vh] rounded-lg"
                   />

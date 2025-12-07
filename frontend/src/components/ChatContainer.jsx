@@ -74,7 +74,7 @@ function ChatContainer({
       updateLastMessage({
         content: response.answer,
         thinking: response.thinking,
-        outputImage: response.output_image,
+        outputImage: response.output_image || (response.task !== 'general' && currentImage?.preview ? currentImage.preview : null),
         task: response.task,
         taskSource: response.task_source,
         isLoading: false,
