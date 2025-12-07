@@ -18,7 +18,7 @@ import re
 import json
 import os
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 # Add scripts directory to path
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -50,7 +50,7 @@ except ImportError:
 RESULTS_DIR = pathlib.Path(__file__).parent.parent / "results" / "pipeline"
 
 # Groq API Key
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "your_api_key_here")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "[REDACTED_GROQ_API_KEY]")
 
 
 
@@ -381,10 +381,90 @@ class PipelineExecutor:
         self.chat = MultiTurnInference(model, repo_dir)
         self.results_history = []
         self.decomposer = decomposer  # For trajectory prompt enhancement
+        self.robot_arm_location = None  # Cache for robot arm detection
+        self.robot_arm_checked = False  # Flag to avoid repeated checks
     
     def set_image(self, image_path: str):
         """Set the image for all pipeline steps."""
         self.chat.set_image(image_path)
+        # Reset robot arm detection when image changes
+        self.robot_arm_location = None
+        self.robot_arm_checked = False
+    
+    def detect_robot_arm(self) -> Optional[Tuple[float, float]]:
+        """
+        Detect if there's a robot arm in the image and return its end-effector position.
+        Returns (x, y) coordinates of the robot arm end-effector/gripper, or None if not found.
+        """
+        if self.robot_arm_checked:
+            return self.robot_arm_location
+        
+        self.robot_arm_checked = True
+        
+        print("\n🤖 Checking for robot arm in the scene...")
+        
+        try:
+            # Try to detect robot arm end-effector/gripper
+            result = self.chat.ask(
+                "robot arm end-effector OR robot gripper OR robotic manipulator tip",
+                task="grounding",
+                enable_thinking=False
+            )
+            
+            answer = result.get("answer", "")
+            
+            # Parse bounding box to get center point
+            pattern = r'\[(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\]'
+            matches = re.findall(pattern, answer)
+            
+            if matches:
+                # Get the first bounding box and calculate its center (end-effector position)
+                x1, y1, x2, y2 = [float(v) for v in matches[0]]
+                center_x = (x1 + x2) / 2
+                center_y = (y1 + y2) / 2
+                self.robot_arm_location = (center_x, center_y)
+                print(f"   ✅ Robot arm detected at position: ({center_x:.1f}, {center_y:.1f})")
+                return self.robot_arm_location
+            
+            # Fallback: try point format
+            pattern = r'\((\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\)'
+            matches = re.findall(pattern, answer)
+            if matches:
+                x, y = float(matches[0][0]), float(matches[0][1])
+                self.robot_arm_location = (x, y)
+                print(f"   ✅ Robot arm detected at position: ({x:.1f}, {y:.1f})")
+                return self.robot_arm_location
+            
+            print("   ℹ️  No robot arm detected in the scene")
+            return None
+            
+        except Exception as e:
+            print(f"   ⚠️  Robot arm detection failed: {e}")
+            return None
+    
+    def prepend_robot_arm_to_trajectory(self, trajectory_points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        """
+        If robot arm is detected, prepend its location as the starting point of the trajectory.
+        This ensures the trajectory starts from the robot's current position.
+        """
+        if not trajectory_points:
+            return trajectory_points
+        
+        robot_pos = self.detect_robot_arm()
+        
+        if robot_pos:
+            # Check if the first trajectory point is already close to robot position
+            first_point = trajectory_points[0]
+            distance = ((first_point[0] - robot_pos[0])**2 + (first_point[1] - robot_pos[1])**2)**0.5
+            
+            # If robot is far from first trajectory point, prepend robot position
+            if distance > 50:  # Threshold: 50 pixels
+                print(f"   🔗 Prepending robot arm position as trajectory start point")
+                return [robot_pos] + trajectory_points
+            else:
+                print(f"   ℹ️  Robot arm already near trajectory start, no modification needed")
+        
+        return trajectory_points
     
     def execute_pipeline(self, pipeline: List[Dict], enable_thinking: bool = False) -> Dict[str, Any]:
         """
@@ -457,6 +537,10 @@ class PipelineExecutor:
                 # Parse coordinates if spatial task
                 coords = self._parse_coordinates(answer, task)
                 if coords:
+                    # For trajectory tasks, prepend robot arm position if detected
+                    if task == "trajectory":
+                        coords = self.prepend_robot_arm_to_trajectory(coords)
+                    
                     step_result["coordinates"] = coords
                     print(f"   📊 Coordinates: {coords[:3]}{'...' if len(coords) > 3 else ''}")
                 
@@ -591,12 +675,27 @@ class PipelineExecutor:
                     points.append((px, py))
                 
                 if len(points) >= 2:
+                    # Check if first point is robot arm position
+                    has_robot_start = self.robot_arm_location is not None
+                    
                     for i in range(len(points) - 1):
-                        cv2.line(vis_img, points[i], points[i+1], color, 3)
+                        # Use different color for line from robot arm
+                        line_color = (0, 165, 255) if (i == 0 and has_robot_start) else color  # Orange for robot start
+                        cv2.line(vis_img, points[i], points[i+1], line_color, 3)
+                    
                     for i, pt in enumerate(points):
-                        cv2.circle(vis_img, pt, 8, color, -1)
-                        cv2.putText(vis_img, str(i+1), (pt[0]-5, pt[1]+5),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
+                        if i == 0 and has_robot_start:
+                            # Robot arm starting point - draw as special marker
+                            cv2.circle(vis_img, pt, 12, (0, 165, 255), -1)  # Orange filled
+                            cv2.circle(vis_img, pt, 14, (0, 0, 0), 2)  # Black outline
+                            cv2.putText(vis_img, "R", (pt[0]-6, pt[1]+5),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                        else:
+                            # Regular trajectory point
+                            cv2.circle(vis_img, pt, 8, color, -1)
+                            point_label = str(i) if has_robot_start else str(i+1)
+                            cv2.putText(vis_img, point_label, (pt[0]-5, pt[1]+5),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
             
             # Save
             RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -630,6 +729,9 @@ class PipelineExecutor:
         """Reset the conversation and results."""
         self.chat.reset()
         self.results_history = []
+        # Reset robot arm detection cache
+        self.robot_arm_location = None
+        self.robot_arm_checked = False
 
 
 # ============================================================================
