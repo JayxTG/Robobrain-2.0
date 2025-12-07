@@ -116,14 +116,7 @@ function Message({ message }) {
           <div className="mt-3">
             <div className="flex items-center gap-2 mb-2">
               <ImageIcon className="w-4 h-4 text-green-600" />
-              <p className="text-xs font-medium text-green-700 dark:text-green-400">
-                {message.outputImage.startsWith('/result/') || message.outputImage.includes('/result/') ? 'Annotated Output:' : 'Input Image (Processing):'}
-              </p>
-              {(!message.outputImage.startsWith('/result/') && !message.outputImage.includes('/result/')) && (
-                <span className="text-xs text-yellow-600 dark:text-yellow-400 italic">
-                  (Visualization pending - showing input image)
-                </span>
-              )}
+              <p className="text-xs font-medium text-green-700 dark:text-green-400">Visual Output:</p>
             </div>
             <div className="relative group">
               <img
