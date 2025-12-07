@@ -28,9 +28,9 @@ function ChatContainer({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!input.trim() || !sessionId || isLoading) return;
-    
+
     const userMessage = {
       id: Date.now(),
       role: 'user',
@@ -39,7 +39,7 @@ function ChatContainer({
       task: currentTask,
       timestamp: new Date().toISOString(),
     };
-    
+
     addMessage(userMessage);
     setInput('');
     setIsLoading(true);
@@ -120,7 +120,7 @@ function ChatContainer({
             <p className="text-gray-600 dark:text-gray-400 max-w-md mb-8 leading-relaxed">
               Upload an image and start asking questions. I can help with general Q&A, visual grounding, affordance detection, trajectory planning, and pointing tasks.
             </p>
-            
+
             {!currentImage && (
               <button
                 onClick={() => fileInputRef.current?.click()}

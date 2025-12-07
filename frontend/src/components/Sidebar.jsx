@@ -151,8 +151,8 @@ function Sidebar({
                   key={task.id}
                   onClick={() => onTaskChange(task.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 shadow-sm hover:shadow-md ${currentTask === task.id
-                      ? 'bg-blue-600 text-white border-2 border-blue-600 shadow-lg'
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
+                    ? 'bg-blue-600 text-white border-2 border-blue-600 shadow-lg'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
                     }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
