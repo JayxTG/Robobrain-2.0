@@ -4,7 +4,7 @@ import json
 import time
 import sys
 
-BASE_URL = "https://f6094542f541.ngrok-free.app/api"
+BASE_URL = "https://h847mxpg-5001.inc1.devtunnels.ms//api"
 
 def test_health():
     print("Testing /health...")
