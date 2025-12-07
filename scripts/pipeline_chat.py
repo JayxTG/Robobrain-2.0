@@ -49,8 +49,11 @@ except ImportError:
 # Results directory
 RESULTS_DIR = pathlib.Path(__file__).parent.parent / "results" / "pipeline"
 
-# Groq API Key
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "[REDACTED_GROQ_API_KEY]")
+# Groq API Key - must be provided via environment variable only. Do not hardcode keys in source.
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    print("\nERROR: GROQ_API_KEY is not set. Please export GROQ_API_KEY in your environment and re-run. e.g. export GROQ_API_KEY=your_key_here")
+    sys.exit(1)
 
 
 
