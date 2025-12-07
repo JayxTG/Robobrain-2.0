@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAllSessions, deleteSessionHistory, getSessionHistory } from '../utils/chatHistory';
+import { getAllSessions, deleteSessionHistory, getSessionHistory, getCurrentSessionId } from '../utils/chatHistory';
 
 const HistorySidebar = ({ onLoadSession, currentSessionId, onClose }) => {
   const [sessions, setSessions] = useState([]);
@@ -16,7 +16,7 @@ const HistorySidebar = ({ onLoadSession, currentSessionId, onClose }) => {
   const handleLoadSession = (sessionId) => {
     const sessionData = getSessionHistory(sessionId);
     if (sessionData) {
-      onLoadSession(sessionId, sessionData.messages);
+      onLoadSession(sessionId, sessionData.messages, sessionData.metadata);
     }
   };
 
@@ -26,9 +26,9 @@ const HistorySidebar = ({ onLoadSession, currentSessionId, onClose }) => {
       deleteSessionHistory(sessionId);
       loadSessions();
       
-      // If deleted current session, notify parent
+      // If deleted current session, notify parent to create new session
       if (sessionId === currentSessionId) {
-        onLoadSession(null, []);
+        onLoadSession(null, [], {});
       }
     }
   };

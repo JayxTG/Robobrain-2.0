@@ -43,9 +43,18 @@ function App() {
         const previousSessionId = getCurrentSessionId();
         if (previousSessionId) {
           const savedHistory = getSessionHistory(previousSessionId);
-          if (savedHistory && savedHistory.messages) {
+          if (savedHistory && savedHistory.messages && savedHistory.messages.length > 0) {
             setSessionId(previousSessionId);
             setMessages(savedHistory.messages);
+            
+            // Restore task and image from metadata
+            if (savedHistory.metadata) {
+              if (savedHistory.metadata.task) {
+                setCurrentTask(savedHistory.metadata.task);
+              }
+              // Note: We don't restore currentImage as it's handled by message content
+            }
+            
             console.log(`Restored session: ${previousSessionId} with ${savedHistory.messages.length} messages`);
             return;
           }
@@ -99,7 +108,7 @@ function App() {
     setCurrentImage(imageData);
   };
 
-  const handleLoadSession = async (loadedSessionId, loadedMessages) => {
+  const handleLoadSession = async (loadedSessionId, loadedMessages, metadata = {}) => {
     if (!loadedSessionId || !loadedMessages) {
       // Create new session if loading failed
       await handleNewChat();
@@ -109,6 +118,20 @@ function App() {
     // Load the selected session
     setSessionId(loadedSessionId);
     setMessages(loadedMessages);
+    
+    // Restore metadata
+    if (metadata.task) {
+      setCurrentTask(metadata.task);
+    }
+    
+    // Extract image from last message if exists
+    const lastMessageWithImage = [...loadedMessages].reverse().find(m => m.image);
+    if (lastMessageWithImage) {
+      setCurrentImage(lastMessageWithImage.image);
+    } else {
+      setCurrentImage(null);
+    }
+    
     setShowHistory(false);
     console.log(`Loaded session: ${loadedSessionId} with ${loadedMessages.length} messages`);
   };
@@ -132,15 +155,6 @@ function App() {
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
-      {/* History Sidebar Modal */}
-      {showHistory && (
-        <HistorySidebar
-          onLoadSession={handleLoadSession}
-          currentSessionId={sessionId}
-          onClose={() => setShowHistory(false)}
-        />
-      )}
-
       {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
@@ -151,6 +165,8 @@ function App() {
         onNewChat={handleNewChat}
         currentImage={currentImage}
         onImageUpload={handleImageUpload}
+        onLoadSession={handleLoadSession}
+        currentSessionId={sessionId}
       />
 
       {/* Main Content */}
@@ -162,7 +178,6 @@ function App() {
           sidebarOpen={sidebarOpen}
           darkMode={darkMode}
           onToggleDarkMode={() => setDarkMode(!darkMode)}
-          onShowHistory={() => setShowHistory(true)}
         />
 
         <ChatContainer

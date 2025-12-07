@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Image as ImageIcon, Loader2, Bot } from 'lucide-react';
 import { sendMessage, uploadImage } from '../api';
 import { annotateImage, parseCoordinates, resizeImageIfNeeded } from '../utils/imageAnnotation';
+import { generateAndSaveConversationName } from '../utils/chatHistory';
 import Message from './Message';
 
 function ChatContainer({
@@ -102,6 +103,13 @@ function ChatContainer({
         taskSource: response.task_source,
         isLoading: false,
       });
+
+      // Generate conversation name for first user message
+      const userMessages = messages.filter(m => m.role === 'user');
+      if (userMessages.length === 0) {
+        // This is the first user message, generate a title
+        generateAndSaveConversationName(sessionId, userMessage.content);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       updateLastMessage({

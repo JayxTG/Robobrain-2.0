@@ -1,14 +1,4 @@
-import axios from 'axios';
-
-const API_BASE = '/api';
-
-const api = axios.create({
-  baseURL: API_BASE,
-  timeout: 120000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import { generateConversationTitle } from '../api';
 
 // Chat history storage keys
 const CHAT_HISTORY_KEY = 'robobrain_chat_history';
@@ -34,6 +24,8 @@ export const saveChatHistory = (sessionId, messages, metadata = {}) => {
     
     localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history));
     localStorage.setItem(CURRENT_SESSION_KEY, sessionId);
+    
+    console.log(`💾 Saved chat history: ${sessionId} (${messages.length} messages)`);
   } catch (error) {
     console.error('Failed to save chat history:', error);
   }
@@ -57,7 +49,13 @@ export const getChatHistory = () => {
  */
 export const getSessionHistory = (sessionId) => {
   const history = getChatHistory();
-  return history[sessionId] || null;
+  const session = history[sessionId] || null;
+  
+  if (session) {
+    console.log(`📖 Retrieved session: ${sessionId} (${session.messages?.length || 0} messages)`);
+  }
+  
+  return session;
 };
 
 /**
@@ -68,6 +66,14 @@ export const deleteSessionHistory = (sessionId) => {
     const history = getChatHistory();
     delete history[sessionId];
     localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history));
+    
+    // Clear current session if it's the one being deleted
+    const currentSessionId = getCurrentSessionId();
+    if (currentSessionId === sessionId) {
+      localStorage.removeItem(CURRENT_SESSION_KEY);
+    }
+    
+    console.log(`🗑️ Deleted session: ${sessionId}`);
   } catch (error) {
     console.error('Failed to delete chat history:', error);
   }
@@ -101,4 +107,34 @@ export const getAllSessions = () => {
     .sort((a, b) => new Date(b.metadata.updatedAt) - new Date(a.metadata.updatedAt));
 };
 
-export default api;
+/**
+ * Generate and save conversation name for a session
+ */
+export const generateAndSaveConversationName = async (sessionId, firstMessage) => {
+  try {
+    // Get the session
+    const session = getSessionHistory(sessionId);
+    if (!session || session.metadata?.conversationName) {
+      return; // Already has a name or session doesn't exist
+    }
+    
+    // Generate title using Groq
+    const response = await generateConversationTitle(firstMessage);
+    const title = response.title;
+    
+    if (title) {
+      // Update session metadata with the generated name
+      const history = getChatHistory();
+      if (history[sessionId]) {
+        history[sessionId].metadata = {
+          ...history[sessionId].metadata,
+          conversationName: title,
+        };
+        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(history));
+        console.log(`💬 Generated conversation name: "${title}"`);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to generate conversation name:', error);
+  }
+};
