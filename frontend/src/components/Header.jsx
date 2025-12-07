@@ -1,6 +1,6 @@
-import { Menu, Wifi, WifiOff, Bot, Sun, Moon } from 'lucide-react';
+import { Menu, Wifi, WifiOff, Bot, Sun, Moon, History } from 'lucide-react';
 
-function Header({ isConnected, sessionId, onToggleSidebar, sidebarOpen, darkMode, onToggleDarkMode }) {
+function Header({ isConnected, sessionId, onToggleSidebar, sidebarOpen, darkMode, onToggleDarkMode, onShowHistory }) {
   return (
     <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm px-6 py-4 flex items-center justify-between transition-colors duration-200">
       <div className="flex items-center gap-4">
@@ -25,6 +25,15 @@ function Header({ isConnected, sessionId, onToggleSidebar, sidebarOpen, darkMode
       </div>
 
       <div className="flex items-center gap-4">
+        {/* History Button */}
+        <button
+          onClick={onShowHistory}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-all duration-200"
+          title="View Chat History"
+        >
+          <History className="w-5 h-5" />
+        </button>
+
         {/* Dark Mode Toggle */}
         <button
           onClick={onToggleDarkMode}
