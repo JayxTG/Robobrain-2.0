@@ -17,6 +17,7 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [darkMode, setDarkMode] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [complexMode, setComplexMode] = useState(false);
 
   // Handle dark mode
   useEffect(() => {
@@ -167,6 +168,8 @@ function App() {
         onImageUpload={handleImageUpload}
         onLoadSession={handleLoadSession}
         currentSessionId={sessionId}
+        complexMode={complexMode}
+        onComplexModeChange={setComplexMode}
       />
 
       {/* Main Content */}
@@ -189,6 +192,7 @@ function App() {
           addMessage={addMessage}
           updateLastMessage={updateLastMessage}
           onImageUpload={handleImageUpload}
+          complexMode={complexMode}
         />
       </div>
     </div>

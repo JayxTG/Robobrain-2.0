@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Image as ImageIcon, Loader2, Bot } from 'lucide-react';
-import { sendMessage, uploadImage } from '../api';
+import { sendMessage, uploadImage, executePipeline } from '../api';
 import { annotateImage, parseCoordinates, resizeImageIfNeeded } from '../utils/imageAnnotation';
 import { generateAndSaveConversationName } from '../utils/chatHistory';
 import Message from './Message';
+import PipelineProgress from './PipelineProgress';
 
 function ChatContainer({
   sessionId,
@@ -14,9 +15,11 @@ function ChatContainer({
   addMessage,
   updateLastMessage,
   onImageUpload,
+  complexMode,
 }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pipelineState, setPipelineState] = useState(null); // { pipeline, executingStep, completedSteps, failedSteps }
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -46,6 +49,65 @@ function ChatContainer({
     setInput('');
     setIsLoading(true);
 
+    // Branch based on mode
+    if (complexMode) {
+      await handleComplexExecution(userMessage);
+    } else {
+      await handleSimpleExecution(userMessage);
+    }
+  };
+
+  const handleComplexExecution = async (userMessage) => {
+    // Add placeholder showing pipeline planning
+    const assistantPlaceholder = {
+      id: Date.now() + 1,
+      role: 'assistant',
+      content: 'Planning execution pipeline...',
+      isLoading: true,
+      isPipeline: true,
+      timestamp: new Date().toISOString(),
+    };
+    addMessage(assistantPlaceholder);
+
+    try {
+      // Upload image if new
+      let imageRef = null;
+      if (currentImage?.file) {
+        const uploadResult = await uploadImage(currentImage.file);
+        imageRef = uploadResult.filename;
+      }
+
+      // Execute pipeline
+      const pipelineResult = await executePipeline(sessionId, userMessage.content, imageRef);
+      
+      // Update with pipeline results
+      updateLastMessage({
+        content: pipelineResult.final_answer || 'Pipeline execution completed',
+        pipelineResult,
+        isPipeline: true,
+        isLoading: false,
+        outputImage: pipelineResult.final_image,
+      });
+
+      // Generate conversation name for first user message
+      const userMessages = messages.filter(m => m.role === 'user');
+      if (userMessages.length === 0) {
+        generateAndSaveConversationName(sessionId, userMessage.content);
+      }
+    } catch (error) {
+      console.error('Failed to execute pipeline:', error);
+      updateLastMessage({
+        content: `Pipeline Error: ${error.response?.data?.error || error.message || 'Failed to execute'}`,
+        isLoading: false,
+        isError: true,
+      });
+    } finally {
+      setIsLoading(false);
+      setPipelineState(null);
+    }
+  };
+
+  const handleSimpleExecution = async (userMessage) => {
     // Add placeholder for assistant response
     const assistantPlaceholder = {
       id: Date.now() + 1,
