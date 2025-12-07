@@ -7,15 +7,15 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'https://f6094542f541.ngrok-free.app',
         changeOrigin: true,
       },
       '/result': {
-        target: 'http://localhost:5001',
+        target: 'https://f6094542f541.ngrok-free.app',
         changeOrigin: true,
       },
       '/uploads': {
-        target: 'http://localhost:5001',
+        target: 'https://f6094542f541.ngrok-free.app',
         changeOrigin: true,
       }
     }

@@ -10,7 +10,7 @@ import concurrent.futures
 from typing import List, Dict
 import sys
 
-BASE_URL = "http://localhost:5001"
+BASE_URL = "https://f6094542f541.ngrok-free.app"
 
 def check_backend_health() -> bool:
     """Check if backend is running."""

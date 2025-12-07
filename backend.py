@@ -326,6 +326,9 @@ def chat():
         filename = os.path.basename(response['output_image'])
         response['output_image'] = f"/result/{filename}"
 
+    # Add the task that was actually used
+    response['task'] = task
+
     return jsonify(response)
 
 @app.route('/api/history/<session_id>', methods=['GET'])

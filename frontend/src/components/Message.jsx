@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Bot, ChevronDown, ChevronUp, AlertCircle, Loader2, Image as ImageIcon, ZoomIn, MapPin } from 'lucide-react';
+import { User, Bot, ChevronDown, ChevronUp, AlertCircle, Loader2, Image as ImageIcon, ZoomIn, MapPin, Sparkles } from 'lucide-react';
 
 function Message({ message }) {
   const [showThinking, setShowThinking] = useState(false);
@@ -28,6 +28,14 @@ function Message({ message }) {
 
       {/* Content */}
       <div className={`flex-1 max-w-2xl ${isUser ? 'text-right' : ''}`}>
+        {/* Detected Task Badge (for assistant) */}
+        {!isUser && message.task && (
+          <div className="flex items-center gap-1.5 mb-1.5 text-xs text-gray-500 dark:text-gray-400 ml-1">
+            <Sparkles className="w-3 h-3 text-blue-500" />
+            <span>Task: <span className="font-medium text-gray-700 dark:text-gray-300 capitalize">{message.task}</span></span>
+          </div>
+        )}
+
         {/* User Image Preview */}
         {isUser && message.image && (
           <div className={`mb-2 ${isUser ? 'flex justify-end' : ''}`}>
