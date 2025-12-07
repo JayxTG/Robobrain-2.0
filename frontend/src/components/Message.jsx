@@ -10,10 +10,10 @@ function Message({ message }) {
     <div className={`flex gap-3 message-enter ${isUser ? 'flex-row-reverse' : ''}`}>
       {/* Avatar */}
       <div
-        className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${isUser
-          ? 'bg-blue-600 text-white'
+        className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${isUser
+          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'
           : message.isError
-            ? 'bg-red-500 text-white'
+            ? 'bg-gradient-to-br from-red-500 to-red-600 text-white'
             : 'bg-gradient-to-br from-purple-500 to-blue-600 text-white'
           }`}
       >
@@ -41,11 +41,11 @@ function Message({ message }) {
 
         {/* Message Bubble */}
         <div
-          className={`inline-block px-4 py-3 rounded-2xl ${isUser
-            ? 'bg-blue-600 text-white rounded-br-md'
+          className={`inline-block px-5 py-3.5 rounded-2xl shadow-md ${isUser
+            ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-md'
             : message.isError
-              ? 'bg-red-50 text-red-800 border border-red-200 rounded-bl-md'
-              : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
+              ? 'bg-red-50 text-red-800 border-2 border-red-200 rounded-bl-md'
+              : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md'
             }`}
         >
           {message.isLoading ? (

@@ -68,23 +68,23 @@ function Sidebar({
   if (!isOpen) return null;
 
   return (
-    <aside className="w-72 bg-white border-r border-gray-200 flex flex-col h-full">
+    <aside className="w-80 bg-gradient-to-b from-gray-50 to-white border-r border-gray-200 flex flex-col h-full shadow-xl">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="font-semibold text-gray-700">Settings</h2>
+      <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-white">
+        <h2 className="text-lg font-bold text-gray-800">Control Panel</h2>
         <button
           onClick={onToggle}
-          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-2 rounded-lg hover:bg-gray-100 transition-all duration-200"
         >
           <X className="w-5 h-5 text-gray-500" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* New Chat Button */}
         <button
           onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
         >
           <Plus className="w-5 h-5" />
           <span>New Chat</span>
@@ -150,15 +150,18 @@ function Sidebar({
                 <button
                   key={task.id}
                   onClick={() => onTaskChange(task.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${currentTask === task.id
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'hover:bg-gray-50 text-gray-700 border border-transparent'
-                    }`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 shadow-sm hover:shadow-md ${
+                    currentTask === task.id
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-2 border-blue-400 shadow-lg'
+                      : 'hover:bg-gray-50 text-gray-700 border-2 border-gray-200 bg-white'
+                  }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   <div className="min-w-0">
                     <p className="font-medium text-sm">{task.name}</p>
-                    <p className="text-xs text-gray-500 truncate">
+                    <p className={`text-xs truncate ${
+                      currentTask === task.id ? 'text-blue-100' : 'text-gray-500'
+                    }`}>
                       {task.description}
                     </p>
                   </div>
@@ -169,10 +172,13 @@ function Sidebar({
         </div>
 
         {/* Model Info */}
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-xs font-medium text-blue-900 mb-1">💡 Using RoboBrain2.0-3B</p>
-          <p className="text-xs text-blue-700">
-            This model specializes in visual understanding and robotic task planning.
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl shadow-sm">
+          <p className="text-sm font-bold text-blue-900 mb-1.5 flex items-center gap-2">
+            <span className="text-lg">💡</span>
+            RoboBrain2.0-3B Model
+          </p>
+          <p className="text-xs text-blue-700 leading-relaxed">
+            Specialized in visual understanding and robotic task planning with real-time inference.
           </p>
         </div>
       </div>
