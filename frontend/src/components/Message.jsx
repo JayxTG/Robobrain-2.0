@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Bot, ChevronDown, ChevronUp, AlertCircle, Loader2, Image as ImageIcon, ZoomIn, MapPin, Sparkles, Zap } from 'lucide-react';
+import PipelineProgress from './PipelineProgress';
 
 // Typing animation component
 const TypingText = ({ text, speed = 20 }) => {
@@ -88,6 +89,18 @@ function Message({ message }) {
               src={message.image}
               alt="Uploaded"
               className="max-w-xs max-h-48 rounded-lg border border-gray-200 dark:border-gray-700 object-cover"
+            />
+          </div>
+        )}
+
+        {/* Pipeline Progress (for complex mode) */}
+        {!isUser && message.isPipeline && message.pipelineResult && (
+          <div className="mb-3 max-w-2xl">
+            <PipelineProgress
+              pipeline={message.pipelineResult.pipeline || []}
+              executingStep={null}
+              completedSteps={message.pipelineResult.steps?.map(s => s.step) || []}
+              failedSteps={message.pipelineResult.steps?.filter(s => !s.success).map(s => s.step) || []}
             />
           </div>
         )}

@@ -37,6 +37,8 @@ function Sidebar({
   onImageUpload,
   onLoadSession,
   currentSessionId,
+  complexMode,
+  onComplexModeChange,
 }) {
   const [sessions, setSessions] = useState([]);
   const [showTasks, setShowTasks] = useState(false);
@@ -152,6 +154,31 @@ function Sidebar({
           <Plus className="w-5 h-5" />
           <span>New Chat</span>
         </button>
+
+        {/* Complex Instruction Mode Toggle */}
+        <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+          <label className="flex items-center justify-between cursor-pointer">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                Complex Mode
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={complexMode}
+                onChange={(e) => onComplexModeChange(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:bg-purple-600 peer-checked:dark:bg-purple-500 transition-colors"></div>
+              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+            </div>
+          </label>
+          <p className="text-xs text-purple-700 dark:text-purple-300 mt-1.5">
+            {complexMode ? 'AI breaks tasks into steps' : 'Single-turn chat mode'}
+          </p>
+        </div>
       </div>
 
       {/* Chat History Section */}

@@ -77,4 +77,14 @@ export const generateConversationTitle = async (message) => {
   return response.data;
 };
 
+// Execute pipeline for complex instructions
+export const executePipeline = async (sessionId, message, image) => {
+  const response = await api.post('/pipeline', {
+    session_id: sessionId,
+    message,
+    image
+  });
+  return response.data;
+};
+
 export default api;
