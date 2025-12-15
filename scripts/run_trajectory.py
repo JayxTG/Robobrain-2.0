@@ -7,8 +7,8 @@ from utils import get_model
 def main():
     model, repo_dir = get_model()
     
-    img_path = str(repo_dir / "assets/demo/trajectory.jpg")
-    prompt = "reach for the banana on the plate"
+    img_path = str("/home/jayamadu/Documents/Robobrain-2.0/assets/demo/trajectory_1.png")
+    prompt = "grab the knife with the robot arm and move it near the bowl"
 
     print(f"Image: {img_path}")
     print(f"Prompt: {prompt}")

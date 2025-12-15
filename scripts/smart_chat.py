@@ -185,15 +185,15 @@ TOOL_TO_TASK = {
 
 
 class GroqTaskClassifier:
-    """ML-based task classifier using Groq API with function calling."""
+    """ML-based task classifier using Groq API."""
     
     def __init__(self, api_key: str):
         self.client = Groq(api_key=api_key)
-        self.model = "llama-3.3-70b-versatile"  # Fast and good at function calling
+        self.model = "llama-3.1-8b-instant"
     
     def classify(self, prompt: str) -> tuple:
         """
-        Classify the user prompt into a task using Groq LLM with tools.
+        Classify the user prompt into a task using Groq LLM.
         Returns (task_name, confidence, reason, extra_info)
         """
         try:
@@ -202,73 +202,64 @@ class GroqTaskClassifier:
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are a task classifier for a robot vision system. 
-Your job is to determine what type of task the user wants based on their question about an image.
-Choose the most appropriate tool/function based on the user's intent.
+                        "content": """You are a task classifier for a robot vision system. Classify the user's query into exactly ONE task type.
 
-CRITICAL DISTINCTION - Output Types:
-- AFFORDANCE: Returns BOUNDING BOX [x1,y1,x2,y2] for graspable area
-- GROUNDING: Returns BOUNDING BOX [x1,y1,x2,y2] for object location  
-- POINTING: Returns SINGLE POINT (x,y) coordinate
-- TRAJECTORY: Returns SEQUENCE of points [(x1,y1), (x2,y2), ...]
+TASK TYPES:
+1. affordance - For GRASPING, PICKING UP, GRABBING, HOLDING objects. Returns bounding box of graspable area.
+   Examples: "grasp the cup", "pick up the apple", "how to grab this?", "what can I hold?"
 
-TASK SELECTION RULES:
+2. grounding - For LOCATING/FINDING where an object IS. Returns bounding box of object location.
+   Examples: "where is the cup?", "find the apple", "locate the chair", "show me the bottle"
 
-1. AFFORDANCE (bounding box): Any query about GRASPING, PICKING UP, GRABBING, HOLDING, LIFTING, or MANIPULATING objects.
-   Keywords: grasp, grab, pick up, hold, lift, grip, manipulate, affordance, graspable
-   Examples: "Grasp the cup", "Pick up the mug", "What can I grab?", "Hold the handle"
-   
-2. GROUNDING (bounding box): ONLY for pure LOCATION queries - user wants to FIND/LOCATE an object visually.
-   Keywords: where is, find, locate, position of, show me where
-   Examples: "Where is the cup?", "Find the apple", "Locate the chair"
+3. pointing - For POINTING TO a single spot. Returns single (x,y) point.
+   Examples: "point to the button", "click on the handle", "what is at (100,200)?"
 
-3. POINTING (single point): When user wants to POINT TO something or identify what's at a specific point.
-   Keywords: point to, point at, click on, tap on, mark, what is at (x,y)
-   Examples: "Point to the cup", "Click on the button", "What is at (100,200)?"
+4. trajectory - For PATH PLANNING, MOTION, NAVIGATION. Returns sequence of waypoints.
+   Examples: "plan a path to the cup", "how to reach the bottle?", "move to the door"
 
-4. TRAJECTORY (path/sequence): Path planning, motion planning, navigation.
-   Keywords: plan path, move to, navigate, reach, trajectory, route
-   Examples: "Plan a path to the cup", "How to reach the bottle?"
+5. general - For DESCRIPTIONS, COUNTING, COLORS, scene understanding.
+   Examples: "what is this?", "describe the scene", "how many objects?", "what color?"
 
-5. GENERAL: Questions about content - descriptions, counting, colors, scene understanding.
-   Keywords: what is, describe, how many, count, color, explain
-   Examples: "What is this?", "Describe the scene", "How many objects?"
+RESPOND WITH ONLY ONE LINE IN THIS FORMAT:
+TASK: <task_name> | REASON: <brief reason>
 
-REMEMBER:
-- "Grasp X" → AFFORDANCE (bounding box of graspable area)
-- "Point to X" → POINTING (single point coordinate)
-- "Where is X?" → GROUNDING (bounding box of object)
-
-Always call exactly one tool based on the user's primary intent."""
+Example responses:
+TASK: affordance | REASON: user wants to grasp the apple
+TASK: grounding | REASON: user wants to find where the cup is located
+TASK: general | REASON: user is asking for a description"""
                     },
                     {
                         "role": "user",
-                        "content": f"Classify this query for a robot vision system: \"{prompt}\""
+                        "content": f"Classify: \"{prompt}\""
                     }
                 ],
-                tools=TASK_TOOLS,
-                tool_choice="required",
                 temperature=0.1,
-                max_tokens=200
+                max_tokens=100
             )
             
-            # Extract the tool call
-            if response.choices[0].message.tool_calls:
-                tool_call = response.choices[0].message.tool_calls[0]
-                tool_name = tool_call.function.name
-                tool_args = json.loads(tool_call.function.arguments)
+            # Parse the response
+            content = response.choices[0].message.content.strip()
+            
+            # Extract task and reason
+            task = "general"
+            reason = "default classification"
+            
+            if "TASK:" in content:
+                parts = content.split("|")
+                task_part = parts[0].replace("TASK:", "").strip().lower()
                 
-                task = TOOL_TO_TASK.get(tool_name, "general")
-                reason = tool_args.get("reason", "ML classification")
-                extra_info = {k: v for k, v in tool_args.items() if k != "reason"}
+                # Validate task
+                valid_tasks = ["general", "grounding", "affordance", "trajectory", "pointing"]
+                if task_part in valid_tasks:
+                    task = task_part
                 
-                return task, 0.95, reason, extra_info
-            else:
-                # Fallback if no tool was called
-                return "general", 0.5, "No tool selected, defaulting to general", {}
+                if len(parts) > 1:
+                    reason = parts[1].replace("REASON:", "").strip()
+            
+            return task, 0.9, reason, {}
                 
         except Exception as e:
-            print(f"⚠️  Groq API error: {e}")
+            print(f"[WARNING] Groq API error: {e}")
             return None, 0, str(e), {}
 
 

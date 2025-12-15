@@ -8,8 +8,8 @@ def main():
     model, repo_dir = get_model()
     
     # Demo asset
-    img_path = str(repo_dir / "assets/demo/grounding.jpg")
-    prompt = "the person wearing a red hat"
+    img_path = str("/home/jayamadu/Documents/Robobrain-2.0/Images/Mouse.jpeg")
+    prompt = "the mouse"
 
     print(f"Image: {img_path}")
     print(f"Prompt: {prompt}")

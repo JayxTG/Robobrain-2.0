@@ -63,6 +63,7 @@ except ImportError:
         sys.exit(1)
 
 
+
 ROBOBRAIN_TASKS = {
     "general": {
         "description": "General visual question answering - describe scenes, count objects, identify colors, explain content",
@@ -101,7 +102,7 @@ class GroqPipelineDecomposer:
     
     def __init__(self, api_key: str):
         self.client = Groq(api_key=api_key)
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "llama-3.1-8b-instant"
     
     def decompose(self, query: str, context: str = "") -> List[Dict[str, Any]]:
         """
@@ -284,7 +285,7 @@ IMPORTANT: Return ONLY the JSON array, no other text. Make trajectory prompts DE
                 }]
                 
         except Exception as e:
-            print(f"⚠️  Groq decomposition error: {e}")
+            print(f"[WARNING] Groq decomposition error: {e}")
             # Fallback to single task
             return [{
                 "step": 1,
@@ -332,7 +333,7 @@ Respond with ONLY the task name, nothing else."""
             return "general"
             
         except Exception as e:
-            print(f"⚠️  Classification error: {e}")
+            print(f"[WARNING] Classification error: {e}")
             return "general"
     
     def enhance_trajectory_prompt(self, original_prompt: str) -> str:
@@ -377,7 +378,7 @@ Respond with ONLY the enhanced prompt, nothing else."""
             return enhanced if len(enhanced) > len(original_prompt) else original_prompt
             
         except Exception as e:
-            print(f"⚠️  Prompt enhancement error: {e}")
+            print(f"[WARNING] Prompt enhancement error: {e}")
             return original_prompt
 
 
@@ -392,13 +393,104 @@ class PipelineExecutor:
         self.decomposer = decomposer  # For trajectory prompt enhancement
         self.robot_arm_location = None  # Cache for robot arm detection
         self.robot_arm_checked = False  # Flag to avoid repeated checks
+        self.scene_understanding = None  # Cache for scene understanding
+        self.scene_understanding_done = False  # Flag to avoid repeated scene analysis
+        self.accumulated_coordinates = {}  # Store coordinates from previous steps {object_name: coords}
     
     def set_image(self, image_path: str):
-        """Set the image for all pipeline steps."""
+        """Set the image for all pipeline steps and perform scene understanding."""
         self.chat.set_image(image_path)
         # Reset robot arm detection when image changes
         self.robot_arm_location = None
         self.robot_arm_checked = False
+        # Reset scene understanding
+        self.scene_understanding = None
+        self.scene_understanding_done = False
+        # Reset accumulated coordinates for new image
+        self.accumulated_coordinates = {}
+        # Perform scene understanding automatically
+        self._perform_scene_understanding()
+    
+    def _perform_scene_understanding(self):
+        """Automatically understand the scene when a new image is set."""
+        if self.scene_understanding_done:
+            return self.scene_understanding
+        
+        self.scene_understanding_done = True
+        
+        print("\n" + "="*60)
+        print("[SCENE UNDERSTANDING] Analyzing new image...")
+        print("="*60)
+        
+        try:
+            # Ask for detailed scene understanding
+            result = self.chat.ask(
+                "Describe this image in detail. List all visible objects, their positions (left, right, center, top, bottom), colors, and any notable features. Also mention any robots, robotic arms, or mechanical components if present.",
+                task="general",
+                enable_thinking=False
+            )
+            
+            self.scene_understanding = result.get("answer", "")
+            
+            if self.scene_understanding:
+                print(f"\n[SCENE] Understanding complete:")
+                # Print truncated version
+                lines = self.scene_understanding.split('.')
+                for i, line in enumerate(lines[:5]):  # First 5 sentences
+                    if line.strip():
+                        print(f"   - {line.strip()}")
+                if len(lines) > 5:
+                    print(f"   ... and more details")
+                print("="*60 + "\n")
+            
+            return self.scene_understanding
+            
+        except Exception as e:
+            print(f"   [WARNING] Scene understanding failed: {e}")
+            self.scene_understanding = ""
+            return ""
+    
+    def get_scene_context(self) -> str:
+        """Get the scene understanding as context for other tasks."""
+        if not self.scene_understanding_done:
+            self._perform_scene_understanding()
+        return self.scene_understanding or ""
+    
+    def store_coordinates(self, object_name: str, coords: List, task: str):
+        """Store coordinates from a step for later use in trajectory planning."""
+        if coords:
+            self.accumulated_coordinates[object_name] = {
+                "coords": coords,
+                "task": task,
+                "type": "bbox" if task in ["grounding", "affordance"] else "point" if task == "pointing" else "waypoints"
+            }
+            print(f"   [STORED] Coordinates for '{object_name}': {coords[:2]}{'...' if len(coords) > 2 else ''}")
+    
+    def get_coordinates_context(self) -> str:
+        """Get accumulated coordinates as context string for trajectory planning."""
+        if not self.accumulated_coordinates:
+            return ""
+        
+        context_parts = []
+        for obj_name, data in self.accumulated_coordinates.items():
+            coords = data["coords"]
+            coord_type = data["type"]
+            
+            if coord_type == "bbox" and coords:
+                # For bounding boxes, provide center point
+                bbox = coords[0] if isinstance(coords[0], (list, tuple)) and len(coords[0]) == 4 else coords
+                if len(bbox) == 4:
+                    x1, y1, x2, y2 = bbox[0] if isinstance(bbox[0], (list, tuple)) else bbox[:4]
+                    center_x = (x1 + x2) / 2
+                    center_y = (y1 + y2) / 2
+                    context_parts.append(f"'{obj_name}' is located at center ({center_x:.1f}, {center_y:.1f}) with bbox [{x1:.1f},{y1:.1f},{x2:.1f},{y2:.1f}]")
+            elif coord_type == "point" and coords:
+                pt = coords[0]
+                context_parts.append(f"'{obj_name}' point is at ({pt[0]:.1f}, {pt[1]:.1f})")
+        
+        if context_parts:
+            return "Known object locations: " + "; ".join(context_parts)
+        return ""
     
     def detect_robot_arm(self) -> Optional[Tuple[float, float]]:
         """
@@ -410,7 +502,7 @@ class PipelineExecutor:
         
         self.robot_arm_checked = True
         
-        print("\n🤖 Checking for robot arm in the scene...")
+        print("\n[ROBOT ARM] Checking for robot arm in the scene...")
         
         try:
             # Try to detect robot arm end-effector/gripper
@@ -432,7 +524,7 @@ class PipelineExecutor:
                 center_x = (x1 + x2) / 2
                 center_y = (y1 + y2) / 2
                 self.robot_arm_location = (center_x, center_y)
-                print(f"   ✅ Robot arm detected at position: ({center_x:.1f}, {center_y:.1f})")
+                print(f"   [FOUND] Robot arm detected at position: ({center_x:.1f}, {center_y:.1f})")
                 return self.robot_arm_location
             
             # Fallback: try point format
@@ -441,14 +533,14 @@ class PipelineExecutor:
             if matches:
                 x, y = float(matches[0][0]), float(matches[0][1])
                 self.robot_arm_location = (x, y)
-                print(f"   ✅ Robot arm detected at position: ({x:.1f}, {y:.1f})")
+                print(f"   [FOUND] Robot arm detected at position: ({x:.1f}, {y:.1f})")
                 return self.robot_arm_location
             
-            print("   ℹ️  No robot arm detected in the scene")
+            print("   [INFO] No robot arm detected in the scene")
             return None
             
         except Exception as e:
-            print(f"   ⚠️  Robot arm detection failed: {e}")
+            print(f"   [WARNING] Robot arm detection failed: {e}")
             return None
     
     def prepend_robot_arm_to_trajectory(self, trajectory_points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
@@ -468,10 +560,10 @@ class PipelineExecutor:
             
             # If robot is far from first trajectory point, prepend robot position
             if distance > 50:  # Threshold: 50 pixels
-                print(f"   🔗 Prepending robot arm position as trajectory start point")
+                print(f"   [PREPEND] Adding robot arm position as trajectory start point")
                 return [robot_pos] + trajectory_points
             else:
-                print(f"   ℹ️  Robot arm already near trajectory start, no modification needed")
+                print(f"   [INFO] Robot arm already near trajectory start, no modification needed")
         
         return trajectory_points
     
@@ -507,15 +599,22 @@ class PipelineExecutor:
                 if "{previous_result}" not in step_info.get("prompt", ""):
                     prompt = f"{prompt} (Context: {previous_result[:200]})"
             
+            # For trajectory tasks, inject accumulated coordinate context
+            if task == "trajectory":
+                coord_context = self.get_coordinates_context()
+                if coord_context:
+                    prompt = f"{prompt}. {coord_context}"
+                    print(f"   [CONTEXT] Added coordinate context to trajectory prompt")
+            
             # Enhance trajectory prompts for better results
             if task == "trajectory" and self.decomposer and len(prompt) < 80:
                 original_prompt = prompt
                 prompt = self.decomposer.enhance_trajectory_prompt(prompt)
                 if prompt != original_prompt:
-                    print(f"   📝 Enhanced prompt: {prompt[:80]}...")
+                    print(f"   [ENHANCED] Prompt: {prompt[:80]}...")
             
             print(f"\n{'='*60}")
-            print(f"📍 Step {step_num}: {description}")
+            print(f"[STEP {step_num}] {description}")
             print(f"   Task: {task.upper()}")
             print(f"   Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}")
             print(f"{'='*60}")
@@ -541,7 +640,7 @@ class PipelineExecutor:
                     "success": True
                 }
                 
-                print(f"\n✅ Answer: {answer[:300]}{'...' if len(answer) > 300 else ''}")
+                print(f"\n[OK] Answer: {answer[:300]}{'...' if len(answer) > 300 else ''}")
                 
                 # Parse coordinates if spatial task
                 coords = self._parse_coordinates(answer, task)
@@ -551,7 +650,13 @@ class PipelineExecutor:
                         coords = self.prepend_robot_arm_to_trajectory(coords)
                     
                     step_result["coordinates"] = coords
-                    print(f"   📊 Coordinates: {coords[:3]}{'...' if len(coords) > 3 else ''}")
+                    print(f"   [COORDS] {coords[:3]}{'...' if len(coords) > 3 else ''}")
+                    
+                    # Store coordinates for later use in trajectory tasks
+                    # Extract object name from prompt or description
+                    object_name = self._extract_object_name(prompt, description)
+                    if object_name and task in ["grounding", "affordance", "pointing"]:
+                        self.store_coordinates(object_name, coords, task)
                 
                 # Visualize if spatial task
                 if task in ["grounding", "affordance", "trajectory", "pointing"] and coords:
@@ -567,7 +672,7 @@ class PipelineExecutor:
                 previous_result = answer
                 
             except Exception as e:
-                print(f"\n❌ Error in step {step_num}: {e}")
+                print(f"\n[ERROR] Error in step {step_num}: {e}")
                 step_result = {
                     "step": step_num,
                     "task": task,
@@ -623,6 +728,37 @@ class PipelineExecutor:
                     return [(float(x), float(y)) for x, y in matches]
         except Exception:
             pass
+        return None
+    
+    def _extract_object_name(self, prompt: str, description: str) -> Optional[str]:
+        """Extract object name from prompt or description for storing coordinates."""
+        # Common patterns to find object names
+        text = f"{prompt} {description}".lower()
+        
+        # Pattern: "the X" or "a X" where X is the object
+        patterns = [
+            r'(?:the|a|an)\s+([a-z]+(?:\s+[a-z]+)?)\s*(?:$|on|in|at|near|from)',
+            r'locate\s+(?:the\s+)?([a-z]+(?:\s+[a-z]+)?)',
+            r'find\s+(?:the\s+)?([a-z]+(?:\s+[a-z]+)?)',
+            r'(?:grasp|grip|pick)\s+(?:the\s+)?([a-z]+(?:\s+[a-z]+)?)',
+            r'([a-z]+\s+[a-z]+)\s+(?:is|are)\s+located',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                obj_name = match.group(1).strip()
+                # Filter out common non-object words
+                skip_words = ['this', 'that', 'where', 'what', 'how', 'scene', 'image', 'step', 'task']
+                if obj_name and obj_name not in skip_words and len(obj_name) > 2:
+                    return obj_name
+        
+        # Fallback: use first noun-like word from prompt
+        words = prompt.lower().split()
+        for word in words:
+            if len(word) > 3 and word not in ['where', 'what', 'find', 'locate', 'grasp', 'reach', 'move', 'from', 'with', 'robot']:
+                return word
+        
         return None
     
     def _visualize_step(self, image_path: str, answer: str, task: str, prompt: str, step_num: int) -> Optional[pathlib.Path]:
@@ -715,7 +851,7 @@ class PipelineExecutor:
             return output_path
             
         except Exception as e:
-            print(f"⚠️  Visualization error: {e}")
+            print(f"[WARNING] Visualization error: {e}")
             return None
     
     def _combine_results(self, steps: List[Dict]) -> str:
@@ -816,7 +952,7 @@ def create_pipeline_visualization(image_path: str, pipeline_results: Dict, outpu
         return output_path
         
     except Exception as e:
-        print(f"⚠️  Combined visualization error: {e}")
+        print(f"[WARNING] Combined visualization error: {e}")
         return None
 
 
@@ -826,36 +962,37 @@ def create_pipeline_visualization(image_path: str, pipeline_results: Dict, outpu
 
 def print_banner():
     print("""
-╔══════════════════════════════════════════════════════════════════╗
-║  🔗 RoboBrain 2.0 PIPELINE Chat (Task Decomposition Engine) 🔗  ║
-║                                                                  ║
-║  This chat uses GROQ LLM to decompose complex queries into      ║
-║  pipelines of simple RoboBrain tasks:                           ║
-║                                                                  ║
-║  Available Tasks:                                                ║
-║    • general    - Scene understanding, Q&A                      ║
-║    • grounding  - Object localization (bounding box)            ║
-║    • affordance - Grasp detection (bounding box)                ║
-║    • trajectory - Path planning (waypoints)                     ║
-║    • pointing   - Point identification (single point)           ║
-║                                                                  ║
-║  Complex Query Examples:                                         ║
-║    "Pick up the red cup and put it near the plate"              ║
-║    "Navigate to the door and find where to grasp the handle"    ║
-║    "What objects can I interact with and how?"                  ║
-║                                                                  ║
-║  Commands:                                                       ║
-║    /image <path>  - Set a new image                             ║
-║    /simple        - Toggle simple mode (single task only)       ║
-║    /thinking on   - Enable thinking mode                        ║
-║    /thinking off  - Disable thinking mode                       ║
-║    /results       - Show last pipeline results                  ║
-║    /clear         - Clear conversation                          ║
-║    /help          - Show this help                              ║
-║    /quit          - Exit                                        ║
-║                                                                  ║
-║  💡 Type complex queries - AI decomposes them automatically!    ║
-╚══════════════════════════════════════════════════════════════════╝
+====================================================================
+   RoboBrain 2.0 PIPELINE Chat (Task Decomposition Engine)
+====================================================================
+
+This chat uses GROQ LLM to decompose complex queries into
+pipelines of simple RoboBrain tasks:
+
+Available Tasks:
+  * general    - Scene understanding, Q&A
+  * grounding  - Object localization (bounding box)
+  * affordance - Grasp detection (bounding box)
+  * trajectory - Path planning (waypoints)
+  * pointing   - Point identification (single point)
+
+Complex Query Examples:
+  "Pick up the red cup and put it near the plate"
+  "Navigate to the door and find where to grasp the handle"
+  "What objects can I interact with and how?"
+
+Commands:
+  /image <path>  - Set a new image
+  /simple        - Toggle simple mode (single task only)
+  /thinking on   - Enable thinking mode
+  /thinking off  - Disable thinking mode
+  /results       - Show last pipeline results
+  /clear         - Clear conversation
+  /help          - Show this help
+  /quit          - Exit
+
+Type complex queries - AI decomposes them automatically!
+====================================================================
 """)
 
 
@@ -871,9 +1008,9 @@ def main():
     # Initialize Groq decomposer
     try:
         decomposer = GroqPipelineDecomposer(GROQ_API_KEY)
-        print("🤖 Groq Pipeline Decomposer initialized (LLaMA 3.3 70B)")
+        print("[OK] Groq Pipeline Decomposer initialized (LLaMA 3.1 8B)")
     except Exception as e:
-        print(f"❌ Could not initialize Groq: {e}")
+        print(f"[ERROR] Could not initialize Groq: {e}")
         sys.exit(1)
     
     # Load model
@@ -888,26 +1025,21 @@ def main():
     enable_thinking = not args.no_thinking
     last_results = None
     
-    # Set initial image
+    # Set initial image only if provided via argument
     if args.image:
         executor.set_image(args.image)
     else:
-        demo_image = repo_dir / "assets/demo/grounding.jpg"
-        if demo_image.exists():
-            executor.set_image(str(demo_image))
-            print(f"📷 Using demo image: {demo_image}")
-        else:
-            print("⚠️  No image set. Use /image <path> to set one.")
+        print("[INFO] No image set. Use /image <path> to set one.")
     
-    print(f"\n🔗 Pipeline mode: {'SIMPLE (single task)' if simple_mode else 'FULL (decomposition)'}")
-    print(f"🧠 Thinking mode: {'ON' if enable_thinking else 'OFF'}")
+    print(f"\n[MODE] Pipeline: {'SIMPLE (single task)' if simple_mode else 'FULL (decomposition)'}")
+    print(f"[MODE] Thinking: {'ON' if enable_thinking else 'OFF'}")
     print("\nType your query (complex queries will be decomposed)!\n")
     
     while True:
         try:
             user_input = input("You: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n\nGoodbye! 👋")
+            print("\n\nGoodbye!")
             break
         
         if not user_input:
@@ -920,7 +1052,7 @@ def main():
             arg = parts[1] if len(parts) > 1 else ""
             
             if cmd in ["/quit", "/exit", "/q"]:
-                print("Goodbye! 👋")
+                print("Goodbye!")
                 break
             
             elif cmd == "/help":
@@ -931,27 +1063,27 @@ def main():
                     if pathlib.Path(arg).exists() or arg.startswith("http"):
                         executor.set_image(arg)
                     else:
-                        print(f"❌ Image not found: {arg}")
+                        print(f"[ERROR] Image not found: {arg}")
                 else:
-                    print(f"📷 Current image: {executor.chat.memory.current_image}")
+                    print(f"[IMAGE] Current: {executor.chat.memory.current_image}")
             
             elif cmd == "/simple":
                 simple_mode = not simple_mode
-                print(f"🔗 Pipeline mode: {'SIMPLE (single task)' if simple_mode else 'FULL (decomposition)'}")
+                print(f"[MODE] Pipeline: {'SIMPLE (single task)' if simple_mode else 'FULL (decomposition)'}")
             
             elif cmd == "/thinking":
                 if arg.lower() == "on":
                     enable_thinking = True
-                    print("🧠 Thinking mode: ON")
+                    print("[MODE] Thinking: ON")
                 elif arg.lower() == "off":
                     enable_thinking = False
-                    print("🧠 Thinking mode: OFF")
+                    print("[MODE] Thinking: OFF")
                 else:
-                    print(f"🧠 Thinking mode: {'ON' if enable_thinking else 'OFF'}")
+                    print(f"[MODE] Thinking: {'ON' if enable_thinking else 'OFF'}")
             
             elif cmd == "/results":
                 if last_results:
-                    print("\n📊 Last Pipeline Results:")
+                    print("\n[RESULTS] Last Pipeline Results:")
                     print(json.dumps(last_results, indent=2, default=str)[:2000])
                 else:
                     print("No results yet.")
@@ -959,23 +1091,23 @@ def main():
             elif cmd == "/clear":
                 executor.reset()
                 last_results = None
-                print("🗑️  Conversation and results cleared")
+                print("[CLEARED] Conversation and results cleared")
             
             else:
-                print(f"❌ Unknown command: {cmd}. Type /help for available commands.")
+                print(f"[ERROR] Unknown command: {cmd}. Type /help for available commands.")
             
             continue
         
         # Check image
         if not executor.chat.memory.current_image:
-            print("⚠️  No image set. Use /image <path> to set one first.")
+            print("[WARNING] No image set. Use /image <path> to set one first.")
             continue
         
         # Process query
         if simple_mode:
             # Simple mode: single task classification
             task = decomposer.classify_single(user_input)
-            print(f"\n🎯 Task: {task.upper()}")
+            print(f"\n[TASK] {task.upper()}")
             
             pipeline = [{
                 "step": 1,
@@ -985,27 +1117,39 @@ def main():
                 "use_previous": False
             }]
         else:
-            # Full mode: decompose into pipeline
-            print("\n🔍 Decomposing query into pipeline...")
-            pipeline = decomposer.decompose(user_input)
+            # Full mode: decompose into pipeline with scene context
+            print("\n[DECOMPOSE] Analyzing query and creating pipeline...")
             
-            print(f"\n📋 Pipeline ({len(pipeline)} steps):")
+            # Get scene understanding as context for decomposition
+            scene_context = executor.get_scene_context()
+            coord_context = executor.get_coordinates_context()
+            
+            # Combine contexts
+            full_context = ""
+            if scene_context:
+                full_context += f"Scene: {scene_context[:300]}"
+            if coord_context:
+                full_context += f" | {coord_context}"
+            
+            pipeline = decomposer.decompose(user_input, context=full_context)
+            
+            print(f"\n[PIPELINE] {len(pipeline)} steps:")
             for step in pipeline:
                 print(f"   {step['step']}. [{step['task'].upper()}] {step['description']}")
         
         # Execute pipeline
-        print(f"\n🚀 Executing pipeline...")
+        print(f"\n[EXECUTE] Running pipeline...")
         results = executor.execute_pipeline(pipeline, enable_thinking=enable_thinking)
         last_results = results
         
         # Show final summary
         print(f"\n{'='*60}")
-        print("📊 PIPELINE COMPLETE")
+        print("[PIPELINE COMPLETE]")
         print(f"{'='*60}")
-        print(f"✅ Successful steps: {sum(1 for s in results['steps'] if s.get('success'))}/{len(results['steps'])}")
+        print(f"[OK] Successful steps: {sum(1 for s in results['steps'] if s.get('success'))}/{len(results['steps'])}")
         
         if results.get("visualizations"):
-            print(f"📸 Visualizations saved: {len(results['visualizations'])}")
+            print(f"[VIS] Visualizations saved: {len(results['visualizations'])}")
             for vis in results["visualizations"]:
                 print(f"   - {vis}")
         
@@ -1019,9 +1163,9 @@ def main():
                 str(combined_path)
             )
             if combined_vis:
-                print(f"🎨 Combined visualization: {combined_vis}")
+                print(f"[COMBINED] Visualization: {combined_vis}")
         
-        print(f"\n📝 Final Answer:\n{results.get('final_answer', 'No answer')[:500]}")
+        print(f"\n[ANSWER]\n{results.get('final_answer', 'No answer')[:500]}")
         print()
 
 
