@@ -18,3 +18,10 @@ build/
 dist/
 *.egg-info/
 api_keys.py
+
+# paper / LaTeX
+paper/
+RoboBrain3.0/
+*.aux
+*.log
+*.synctex.gz
